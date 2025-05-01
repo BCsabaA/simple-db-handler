@@ -86,6 +86,8 @@ class Table():
                 create_table_query += f' DEFAULT {field.default}'
             if field.not_null:
                 create_table_query += ' NOT NULL'
+            if field.foreign_key_table is not None:
+                create_table_query += f' REFERENCES {field.foreign_key_table}({field.foreign_key_column})'
             create_table_query += ', '
         create_table_query = create_table_query[:-2] + ')'
         print(create_table_query)
@@ -100,7 +102,7 @@ class Table():
 
 
 class Field():
-    def __init__(self, name, type, default=None, primary_key=False, autoincrement=False, unique=False, not_null=False):
+    def __init__(self, name, type, default=None, primary_key=False, autoincrement=False, unique=False, not_null=False, foreign_key_table=None, foreign_key_column=None):
         self.name = name
         self.type = type
         self.default = default
@@ -108,6 +110,9 @@ class Field():
         self.autoincrement = autoincrement
         self.unique = unique
         self.not_null = not_null
+        self.foreign_key_table = foreign_key_table
+        self.foreign_key_column = foreign_key_column
+
 
 
 class Person(Table):
@@ -117,11 +122,13 @@ class Person(Table):
     AGE = Field('age', int)
     PHONE = Field('phone', int, unique=True)
     DELETED = Field('deleted', bool, default=False)
+    CARPLATE = Field('carplate', str, foreign_key_table='cars', foreign_key_column='plate')
 
-    def __init__(self, name, age, phone):
+    def __init__(self, name, age, phone, carplate=None):
         self.name = name
         self.age = age
         self.phone = phone
+        self.carplate = carplate
         self.id = None
         super().__init__()
 
@@ -130,12 +137,37 @@ class Person(Table):
 
     def __str__(self):
         return f'Person(name={self.name}, age={self.age}, phone={self.phone})'
+    
+class Car(Table):
+    TABLENAME = 'cars'
+    ID = Field('id', int, primary_key=True, autoincrement=True)
+    PLATE = Field('plate', str, unique=True)
+    MODEL = Field('model', str)
+    DELETED = Field('deleted', bool, default=False)
+
+    def __init__(self, plate, model):
+        self.plate = plate
+        self.model = model
+        self.id = None
+        super().__init__()
+
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
+    def __str__(self):
+        return f'Car(plate={self.plate}, model={self.model})'
+
 
 
 def test():
     Database('test.db')
-    # person1 = Person('Johnny Doe', 2, 1234567892)
-    # person2 = Person('Jane Doe', 24, 1234567891)
+
+    car1 = Car('ABC123', 'BMW')
+    car2 = Car('DEF456', 'Mercedes')
+    car3 = Car('GHI789', 'Volvo')
+
+    person1 = Person('Johnny Doe', 2, 1234567892, 'ABC123')
+    person2 = Person('Jane Doe', 24, 1234567891, 'DEF456')
     person3 = Person('John Doe', 24, 1234567890)
 
 
