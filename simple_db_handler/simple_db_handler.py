@@ -25,6 +25,9 @@ class Database():
         self.conn = sqlite3.connect(self.db_name)
         self.cursor = self.conn.cursor()
 
+    def rollback(self):
+        self.conn.rollback()
+
 
 class Table():
 
@@ -65,9 +68,13 @@ class Table():
             print('No database')
             return
         Database.DATABASE.open()
-        Database.DATABASE.cursor.execute(create_insert_query, values)
-        Database.DATABASE.commit()
-        self.id = Database.DATABASE.cursor.lastrowid
+        try:
+            Database.DATABASE.cursor.execute(create_insert_query, values)
+            Database.DATABASE.commit()
+            self.id = Database.DATABASE.cursor.lastrowid
+        except sqlite3.IntegrityError:
+            Database.DATABASE.rollback()
+            print('IntegrityError', f'{self} already exists, skipping')
         Database.DATABASE.close()
 
     def parse_object_to_table(self):
@@ -99,6 +106,10 @@ class Table():
         Database.DATABASE.commit()
         Database.DATABASE.close()
         Database.TABLES.append(self.__class__.TABLENAME)
+
+        def read_table(self, filters: dict=None, columns: list=None, foreign_columns: list=None, order_by: list=None):
+            # TODO
+            pass
 
 
 class Field():
