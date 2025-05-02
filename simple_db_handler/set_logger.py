@@ -1,32 +1,34 @@
 import logging
 
-def set_logger(name):
+
+def set_logger(name, log_folder='logs', log_file_name='info.log'):
+    SELF_LOGGER = logging.getLogger(__name__)
+    self_formatter = logging.Formatter(
+        '%(asctime)s:%(levelname)s:%(name)s:%(message)s'
+    )
+    self_file_info_handler = logging.FileHandler(f'{log_folder}/.{__name__}.log')
+    self_file_info_handler.setFormatter(self_formatter)
+    SELF_LOGGER.addHandler(self_file_info_handler)
+    SELF_LOGGER.setLevel(logging.INFO)
+    SELF_LOGGER.info('     ***** NEW RUN *****     ')
+
+
     logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
-
-    print(name)
+    log_level = logging.INFO
+    logger.setLevel(log_level)
+    SELF_LOGGER.info(f'set_logger: {logger.name} {logger} created')
     
-    formatter = logging.Formatter(
-        '%(asctime)s:%(levelname)s:%(name)s:%(message)s')
+    formatter_text = '%(asctime)s:%(levelname)s:%(name)s:%(message)s'
 
-    # file_error_handler = logging.FileHandler(
-    #     'error.log')
-    # file_error_handler.setFormatter(formatter)
-    # file_error_handler.setLevel(logging.ERROR)
-
-    file_info_handler = logging.FileHandler(
-        'logs/info.log')
+    formatter = logging.Formatter(formatter_text)
+    SELF_LOGGER.info(f'set_logger: formatter created: {formatter_text}')
+    
+    file_info_handler = logging.FileHandler(f'{log_folder}/{log_file_name}')
     file_info_handler.setFormatter(formatter)
     file_info_handler.setLevel(logging.INFO)
 
-
-    #file_handler.setLevel(logging.ERROR)
-
-    #stream_handler = logging.StreamHandler()
-    #stream_handler.setFormatter(formatter)
-
-    #logger.addHandler(file_error_handler)
     logger.addHandler(file_info_handler)
+    SELF_LOGGER.info(f'set_logger: {file_info_handler} added to logger')
 
     return logger
 

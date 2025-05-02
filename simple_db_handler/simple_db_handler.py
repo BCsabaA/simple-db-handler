@@ -1,6 +1,10 @@
 import sqlite3
 import logging # TODO add logging
+from set_logger import set_logger
 
+
+LOGGER = set_logger(__name__)
+LOGGER.info('********** NEW RUN **********')
 
 
 class Database():
@@ -9,7 +13,7 @@ class Database():
     TABLES = []
     def __init__(self, db_name):
         if Database.DATABASE:
-            print('Database already exists')
+            LOGGER.info('class Database: __init__(): Database already exists')
             self.db_name = Database.DATABASE.db_name
             self.conn = Database.DATABASE.conn
             self.cursor = Database.DATABASE.cursor
@@ -19,19 +23,24 @@ class Database():
         self.conn = sqlite3.connect(db_name)
         self.cursor = self.conn.cursor()
         self.close()
+        LOGGER.info('class Database: __init__(): Database created')
 
     def close(self):
         self.conn.close()
+        LOGGER.info('class Database: close(): Database closed')
 
     def commit(self):
         self.conn.commit()
+        LOGGER.info(f'class Database: commit(): Database committed')
 
     def open(self):
         self.conn = sqlite3.connect(self.db_name)
         self.cursor = self.conn.cursor()
+        LOGGER.info(f'class Database: open(): Database opened')
 
     def rollback(self):
         self.conn.rollback()
+        LOGGER.info(f'class Database: rollback(): Database rolled back')
 
     def read_table(self, filters: dict=None, columns: list=None, foreign_columns: list=None, order_by: list=None):
             # TODO define table read
@@ -43,6 +52,14 @@ class Database():
             obj.parse_object_to_table()
         if obj.__dict__.get('id') == None:
             obj.insert_instance_in_database()
+
+    def insert_many(self, objs):
+        objs_create_table = [obj for obj in objs if obj.__class__.TABLENAME not in Database.TABLES]
+        for obj in objs_create_table:
+            obj.parse_object_to_table()
+        for obj in objs:
+            if obj.__dict__.get('id') == None:
+                obj.insert_instance_in_database()
 
     def update(self, obj):
         # TODO define objetc update
@@ -67,17 +84,10 @@ class Table():
 
     def __init__(self):
         if not Database.DATABASE:
-            print('No database')
+            LOGGER.info('class Table: __init__(): No database, returning')
             return
         if self.__class__.TABLENAME not in Database.TABLES:
             self.parse_object_to_table()
-        print(self.__dict__.get('id'))
-        print(self.__class__.TABLENAME)
-        print(Database.TABLES)
-        print(self.__class__.TABLENAME in Database.TABLES)
-        # if self.__class__.TABLENAME in Database.TABLES:
-        #     if self.__dict__.get('id') == None:
-        #         self.insert_instance_in_database()
         
     def __str__(self):
         return f'{self.__class__.__name__}({self.__dict__})'
@@ -86,29 +96,28 @@ class Table():
         return self.__dict__ == other.__dict__
 
     def insert_instance_in_database(self):
-        print('insert_instance_in_database')
         columns = ', '.join(field for field in self.__dict__.keys() )
         values = tuple(self.__dict__.values())
         create_insert_query = f'INSERT INTO {self.__class__.TABLENAME}({columns}) VALUES({", ".join("?" for _ in values)})'
-        print(create_insert_query)
+        LOGGER.info(f'class Table: insert_instance_in_database(): create_insert_query: {create_insert_query}')
         if not Database.DATABASE:
-            print('No database')
+            LOGGER.info('class Table: insert_instance_in_database(): No database, returning')
             return
         Database.DATABASE.open()
         try:
             Database.DATABASE.cursor.execute(create_insert_query, values)
             Database.DATABASE.commit()
             self.id = Database.DATABASE.cursor.lastrowid
+            LOGGER.info(f'class Table: insert_instance_in_database(): {self.__class__.__name__}: {self} inserted')
         except sqlite3.IntegrityError:
             Database.DATABASE.rollback()
-            print('IntegrityError', f'{self} already exists, skipping')
+            LOGGER.info(f'class Table: insert_instance_in_database(): {self.__class__.__name__}: {self} already exists (IntegrityError on some unique field), skipping')
         Database.DATABASE.close()
 
     def parse_object_to_table(self):
         fields = (field for field in self.__class__.__dict__.values() if isinstance(field, Field))
         create_table_query = f'CREATE TABLE IF NOT EXISTS {self.__class__.TABLENAME}('
         for field in fields:
-            print(field)
             create_table_query += f'{field.name} {self.type_map[field.type]}'
             if field.primary_key:
                 create_table_query += ' PRIMARY KEY'
@@ -124,15 +133,16 @@ class Table():
                 create_table_query += f' REFERENCES {field.foreign_key_table}({field.foreign_key_column})'
             create_table_query += ', '
         create_table_query = create_table_query[:-2] + ')'
-        print(create_table_query)
+        LOGGER.info(f'class Table: parse_object_to_table(): create_table_query: {create_table_query}')
         if not Database.DATABASE:
-            print('No database')
+            LOGGER.info('class Table: parse_object_to_table(): No database, returning')
             return
         Database.DATABASE.open()
         Database.DATABASE.cursor.execute(create_table_query)
         Database.DATABASE.commit()
         Database.DATABASE.close()
         Database.TABLES.append(self.__class__.TABLENAME)
+        LOGGER.info(f'class Table: parse_object_to_table(): {self.__class__.__name__} table created')
 
 
 class Field():
@@ -146,6 +156,7 @@ class Field():
         self.not_null = not_null
         self.foreign_key_table = foreign_key_table
         self.foreign_key_column = foreign_key_column
+        LOGGER.info(f'class Field: __init__(): Field {self.name} created: {self.__dict__}')
 
 
 
@@ -165,12 +176,13 @@ class Person(Table):
         self.carplate = carplate
         self.id = None
         super().__init__()
+        LOGGER.info(f'class Person: __init__(): Person {self.name} created: {self.__dict__}')
 
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
 
     def __str__(self):
-        return f'Person(name={self.name}, age={self.age}, phone={self.phone})'
+        return f'Person(id={self.id}, name={self.name}, age={self.age}, phone={self.phone}, carplate={self.carplate})'
     
 class Car(Table):
     TABLENAME = 'cars'
@@ -184,28 +196,47 @@ class Car(Table):
         self.model = model
         self.id = None
         super().__init__()
+        LOGGER.info(f'class Car: __init__(): Car {self.plate} created: {self.__dict__}')
 
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
 
     def __str__(self):
-        return f'Car(plate={self.plate}, model={self.model})'
+        return f'Car(id={self.id}, plate={self.plate}, model={self.model})'
 
+
+class Country(Table):
+    TABLENAME = 'countries'
+    ID = Field('id', int, primary_key=True, autoincrement=True)
+    NAME = Field('name', str, unique=True)
+    SHORTNAME = Field('shortname', str, unique=True)
+    DELETED = Field('deleted', bool, default=False)
+
+    def __init__(self, name, shortname):
+        self.name = name
+        self.shortname = shortname
+        self.id = None
+        super().__init__()
+        LOGGER.info(f'class Country: __init__(): Country {self.name} created: {self.__dict__}')
+
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
+    def __str__(self):
+        return f'Country(id={self.id}, name={self.name}, shortname={self.shortname})'
 
 
 def test():
-    db =Database('test.db')
+    db = Database('test.db')
+    person1 = Person('John Doe', 30, '123456789')
+    person2 = Person('Emese', 46, '987654321', 'HUH406')
+    person3 = Person('Jázmin', 2, '987654322')
 
-    # car1 = Car('ABC123', 'BMW')
-    # car2 = Car('DEF456', 'Mercedes')
-    # car3 = Car('GHI789', 'Volvo')
+    country1 = Country('Hungary', 'HU')
+    country2 = Country('Germany', 'DE')
 
-    # person1 = Person('Johnny Doe', 2, 1234567892, 'ABC123')
-    # person2 = Person('Jane Doe', 24, 1234567891, 'DEF456')
-    # person3 = Person('John Doe', 24, 1234567890)
+    db.insert_many([person1, person2, person3, country1, country2])
 
-    car4 = Car('HUH404', 'Opel')
-    db.insert(car4)
 
 
 if __name__ == '__main__':
