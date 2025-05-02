@@ -1,4 +1,5 @@
 import logging
+import os
 
 
 def set_logger(name, log_folder='logs', log_file_name='info.log'):
@@ -23,7 +24,8 @@ def set_logger(name, log_folder='logs', log_file_name='info.log'):
     formatter = logging.Formatter(formatter_text)
     SELF_LOGGER.info(f'set_logger: formatter created: {formatter_text}')
     
-    file_info_handler = logging.FileHandler(f'{log_folder}/{log_file_name}')
+    os.remove(f'{log_folder}/{log_file_name}')
+    file_info_handler = logging.FileHandler(f'{log_folder}/{log_file_name}',)
     file_info_handler.setFormatter(formatter)
     file_info_handler.setLevel(logging.INFO)
 

@@ -22,6 +22,8 @@ class Database():
         Database.DATABASE = self
         self.conn = sqlite3.connect(db_name)
         self.cursor = self.conn.cursor()
+        # get table names from the database
+        Database.TABLES = [self.cursor.execute(f'SELECT name FROM sqlite_master WHERE type="table"').fetchall()[i][0] for i in range(len(self.cursor.execute(f'SELECT name FROM sqlite_master WHERE type="table"').fetchall()))]
         self.close()
         LOGGER.info('class Database: __init__(): Database created')
 
@@ -42,9 +44,53 @@ class Database():
         self.conn.rollback()
         LOGGER.info(f'class Database: rollback(): Database rolled back')
 
-    def read_table(self, filters: dict=None, columns: list=None, foreign_columns: list=None, order_by: list=None):
-            # TODO define table read
-        pass
+    def execute(self, query):
+        if not Database.DATABASE:
+            LOGGER.info('class Database: execute(): No database, returning')
+            return
+        Database.DATABASE.open()
+        data = Database.DATABASE.cursor.execute(query).fetchall()
+        Database.DATABASE.commit()
+        Database.DATABASE.close()
+        LOGGER.info(f'class Database: execute(): {query} executed')
+        return data
+
+    def read(self, obj_class, filters: dict=None, order_by: list=None):
+        table = obj_class.TABLENAME
+        if table not in Database.TABLES:
+            LOGGER.info(f'class Database: read_table(): {table} not in Database.TABLES')
+            return []
+        if filters is None:
+            filters = {}
+        columns = [column for column in obj_class.__dict__.keys() if isinstance(obj_class.__dict__[column], Field)]
+        if order_by is None:
+            order_by = []
+        create_read_query = f'SELECT {", ".join(columns)} FROM {table}'
+        if filters:
+            create_read_query += ' WHERE '
+            for key, value in filters.items():
+                create_read_query += f'{key} LIKE ? AND '
+            create_read_query = create_read_query[:-5]
+        if order_by:
+            create_read_query += ' ORDER BY '
+            for key in order_by:
+                create_read_query += f'{key} ASC, '
+            create_read_query = create_read_query[:-2]
+        LOGGER.info(f'class Database: read_table(): create_read_query: {create_read_query}')
+        if not Database.DATABASE:
+            LOGGER.info('class Database: read_table(): No database, returning')
+            return
+        Database.DATABASE.open()
+        Database.DATABASE.cursor.execute(create_read_query, tuple(filters.values()))
+        rows = Database.DATABASE.cursor.fetchall()
+        Database.DATABASE.close()
+        print(columns)
+        print(create_read_query)
+        print(rows)
+        for row in rows:
+            print(*row)
+        LOGGER.info(f'class Database: read_table(): {table} read')
+        return [obj_class(*row) for row in rows]
 
     def insert(self,obj):
         table = obj.__class__.TABLENAME
@@ -61,13 +107,20 @@ class Database():
             if obj.__dict__.get('id') == None:
                 obj.insert_instance_in_database()
 
-    def update(self, obj):
-        # TODO define objetc update
-        pass
+    def update(self, obj_class, id, data: dict):
+        create_update_query = f'UPDATE {obj_class.TABLENAME} SET {", ".join([f'{key}=?' for key in data.keys()])} WHERE id=?'
+        if not Database.DATABASE:
+            LOGGER.info('class Database: update(): No database, returning')
+            return
+        Database.DATABASE.open()
+        Database.DATABASE.cursor.execute(create_update_query, tuple(data.values()) + (id,))
+        Database.DATABASE.commit()
+        Database.DATABASE.close()
+        LOGGER.info(f'class Database: update(): {obj_class.TABLENAME} {id} updated')
 
-    def delete(self, obj):
-        # TODO define objetc delete
-        pass
+    def delete(self, obj_class, id):
+        self.update(obj_class, id, {'deleted': True})
+        LOGGER.info(f'class Database: delete(): {obj_class.TABLENAME} {id} deleted')
 
     def __str__(self):
         return f'Database(name={self.db_name}, tables={self.TABLES} connection={self.conn}, cursor={self.cursor})'
@@ -169,12 +222,13 @@ class Person(Table):
     DELETED = Field('deleted', bool, default=False)
     CARPLATE = Field('carplate', str, foreign_key_table='cars', foreign_key_column='plate')
 
-    def __init__(self, name, age, phone, carplate=None):
+    def __init__(self, id=None, name="", age=None, phone=None, deleted=False, carplate=None):
         self.name = name
         self.age = age
         self.phone = phone
+        self.deleted = deleted
         self.carplate = carplate
-        self.id = None
+        self.id = id
         super().__init__()
         LOGGER.info(f'class Person: __init__(): Person {self.name} created: {self.__dict__}')
 
@@ -191,10 +245,11 @@ class Car(Table):
     MODEL = Field('model', str)
     DELETED = Field('deleted', bool, default=False)
 
-    def __init__(self, plate, model):
+    def __init__(self, id=None, plate='', model="", deleted=False):
         self.plate = plate
         self.model = model
-        self.id = None
+        self.deleted = deleted
+        self.id = id
         super().__init__()
         LOGGER.info(f'class Car: __init__(): Car {self.plate} created: {self.__dict__}')
 
@@ -212,10 +267,11 @@ class Country(Table):
     SHORTNAME = Field('shortname', str, unique=True)
     DELETED = Field('deleted', bool, default=False)
 
-    def __init__(self, name, shortname):
+    def __init__(self, id=None, name="", shortname="", deleted=False):
         self.name = name
         self.shortname = shortname
-        self.id = None
+        self.deleted = deleted
+        self.id = id
         super().__init__()
         LOGGER.info(f'class Country: __init__(): Country {self.name} created: {self.__dict__}')
 
@@ -223,20 +279,13 @@ class Country(Table):
         return self.__dict__ == other.__dict__
 
     def __str__(self):
-        return f'Country(id={self.id}, name={self.name}, shortname={self.shortname})'
+        return f'Country(id={self.id}, name={self.name}, shortname={self.shortname}, deleted={self.deleted})'
 
 
 def test():
     db = Database('test.db')
-    person1 = Person('John Doe', 30, '123456789')
-    person2 = Person('Emese', 46, '987654321', 'HUH406')
-    person3 = Person('Jázmin', 2, '987654322')
-
-    country1 = Country('Hungary', 'HU')
-    country2 = Country('Germany', 'DE')
-
-    db.insert_many([person1, person2, person3, country1, country2])
-
+    db_table = db.execute('SELECT persons.name, persons.carplate, cars.model FROM persons INNER JOIN cars ON persons.carplate = cars.plate;')
+    print(db_table)
 
 
 if __name__ == '__main__':
