@@ -3,7 +3,6 @@ import logging # TODO add logging
 
 
 
-
 class Database():
 
     DATABASE = None
