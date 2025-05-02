@@ -1,5 +1,5 @@
 import sqlite3
-import logging
+import logging # TODO add logging
 
 
 
@@ -9,6 +9,12 @@ class Database():
     DATABASE = None
     TABLES = []
     def __init__(self, db_name):
+        if Database.DATABASE:
+            print('Database already exists')
+            self.db_name = Database.DATABASE.db_name
+            self.conn = Database.DATABASE.conn
+            self.cursor = Database.DATABASE.cursor
+            return
         self.db_name = db_name
         Database.DATABASE = self
         self.conn = sqlite3.connect(db_name)
@@ -27,6 +33,28 @@ class Database():
 
     def rollback(self):
         self.conn.rollback()
+
+    def read_table(self, filters: dict=None, columns: list=None, foreign_columns: list=None, order_by: list=None):
+            # TODO define table read
+        pass
+
+    def insert(self,obj):
+        table = obj.__class__.TABLENAME
+        if table not in Database.TABLES:
+            obj.parse_object_to_table()
+        if obj.__dict__.get('id') == None:
+            obj.insert_instance_in_database()
+
+    def update(self, obj):
+        # TODO define objetc update
+        pass
+
+    def delete(self, obj):
+        # TODO define objetc delete
+        pass
+
+    def __str__(self):
+        return f'Database(name={self.db_name}, tables={self.TABLES} connection={self.conn}, cursor={self.cursor})'
 
 
 class Table():
@@ -48,9 +76,9 @@ class Table():
         print(self.__class__.TABLENAME)
         print(Database.TABLES)
         print(self.__class__.TABLENAME in Database.TABLES)
-        if self.__class__.TABLENAME in Database.TABLES:
-            if self.__dict__.get('id') == None:
-                self.insert_instance_in_database()
+        # if self.__class__.TABLENAME in Database.TABLES:
+        #     if self.__dict__.get('id') == None:
+        #         self.insert_instance_in_database()
         
     def __str__(self):
         return f'{self.__class__.__name__}({self.__dict__})'
@@ -106,10 +134,6 @@ class Table():
         Database.DATABASE.commit()
         Database.DATABASE.close()
         Database.TABLES.append(self.__class__.TABLENAME)
-
-        def read_table(self, filters: dict=None, columns: list=None, foreign_columns: list=None, order_by: list=None):
-            # TODO
-            pass
 
 
 class Field():
@@ -171,16 +195,18 @@ class Car(Table):
 
 
 def test():
-    Database('test.db')
+    db =Database('test.db')
 
-    car1 = Car('ABC123', 'BMW')
-    car2 = Car('DEF456', 'Mercedes')
-    car3 = Car('GHI789', 'Volvo')
+    # car1 = Car('ABC123', 'BMW')
+    # car2 = Car('DEF456', 'Mercedes')
+    # car3 = Car('GHI789', 'Volvo')
 
-    person1 = Person('Johnny Doe', 2, 1234567892, 'ABC123')
-    person2 = Person('Jane Doe', 24, 1234567891, 'DEF456')
-    person3 = Person('John Doe', 24, 1234567890)
+    # person1 = Person('Johnny Doe', 2, 1234567892, 'ABC123')
+    # person2 = Person('Jane Doe', 24, 1234567891, 'DEF456')
+    # person3 = Person('John Doe', 24, 1234567890)
 
+    car4 = Car('HUH404', 'Opel')
+    db.insert(car4)
 
 
 if __name__ == '__main__':
